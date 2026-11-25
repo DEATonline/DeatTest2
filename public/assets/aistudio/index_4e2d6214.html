@@ -1,0 +1,3022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DEAT — Global Route Network</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #ffffff;
+      --surface-alt: #f7f8fa;
+      --border: #dfe3e8;
+      --border-strong: #c5ccd4;
+      --ink: #16181d;
+      --ink-secondary: #4b525c;
+      --ink-muted: #767e8a;
+      --deat-red: #EE1C25;
+      --deat-red-hover: #cc121a;
+      --route-highlight: #FF131B;
+      --sandbox-accent: #d97706;
+      --sandbox-bg: #fffbeb;
+      --land: #d8dce2;
+      --land-stroke: #ffffff;
+      --marker-fill: #ffffff;
+      --label-halo: #ffffff;
+      --ok: #15803d;
+      --warn: #b45309;
+      --err: #dc2626;
+      --radius: 3px;
+      --bar-h: 46px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    body.dark-mode {
+      --bg: #0c0f14;
+      --surface: #12161f;
+      --surface-alt: #181d29;
+      --border: #262d3d;
+      --border-strong: #394359;
+      --ink: #f1f5f9;
+      --ink-secondary: #cbd5e1;
+      --ink-muted: #8b95a5;
+      --sandbox-bg: #291d06;
+      --land: #1c222e;
+      --land-stroke: #0c0f14;
+      --marker-fill: #0c0f14;
+      --label-halo: #0c0f14;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body.sandbox-active main.map-viewport {
+      box-shadow: inset 0 0 0 3px var(--sandbox-accent);
+    }
+
+    /* Sandbox Banner & Dock */
+    .sandbox-banner {
+      position: fixed;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 40;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      height: 34px;
+      padding: 0 14px;
+      background: var(--sandbox-bg);
+      border: 1.5px solid var(--sandbox-accent);
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--sandbox-accent);
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    body.sandbox-active .sandbox-banner {
+      display: inline-flex;
+    }
+
+    .sandbox-pill {
+      padding: 2px 6px;
+      border-radius: 2px;
+      background: var(--sandbox-accent);
+      color: #ffffff;
+      font-size: 9.5px;
+      letter-spacing: 0.06em;
+    }
+
+    .sandbox-dock {
+      position: fixed;
+      bottom: 56px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 35;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 12px;
+      background: var(--surface);
+      border: 1.5px solid var(--sandbox-accent);
+      border-radius: var(--radius);
+      flex-wrap: wrap;
+      max-width: calc(100vw - 28px);
+    }
+
+    body.sandbox-active .sandbox-dock {
+      display: flex;
+    }
+
+    .sandbox-status-text {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-secondary);
+      white-space: nowrap;
+    }
+
+    .sandbox-status-text strong {
+      color: var(--sandbox-accent);
+    }
+
+    .sandbox-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+    }
+
+    .sandbox-color-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      text-transform: uppercase;
+    }
+
+    .sandbox-color-label input[type="color"] {
+      width: 28px;
+      height: 24px;
+      padding: 1px;
+      border: 1px solid var(--border-strong);
+      border-radius: 2px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .sandbox-preset {
+      width: 16px;
+      height: 16px;
+      border-radius: 2px;
+      border: 1px solid rgba(0, 0, 0, 0.25);
+      cursor: pointer;
+      padding: 0;
+    }
+
+    /* Full-bleed Cartographic Canvas */
+    main.map-viewport {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: var(--bg);
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    #network-map {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+
+    #network-map:active {
+      cursor: grabbing;
+    }
+
+    /* Top Structural Masthead (Left: DEAT Identity + Telemetry Strip) */
+    .masthead {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 30;
+      display: flex;
+      align-items: stretch;
+      height: var(--bar-h);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    body.sandbox-active .masthead {
+      border-color: var(--sandbox-accent);
+    }
+
+    .deat-mark {
+      background: var(--deat-red);
+      color: #ffffff;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-radius: calc(var(--radius) - 1px) 0 0 calc(var(--radius) - 1px);
+      flex-shrink: 0;
+    }
+
+    .deat-wordmark {
+      font-weight: 800;
+      font-style: italic;
+      font-size: 16px;
+      letter-spacing: 0.04em;
+      line-height: 1;
+    }
+
+    .masthead-meta {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 0 14px;
+      border-right: 1px solid var(--border);
+    }
+
+    .masthead-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      font-style: italic;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--ink-secondary);
+      line-height: 1.15;
+    }
+
+    .masthead-telemetry {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-muted);
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+
+    .sync-readout {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      white-space: nowrap;
+    }
+
+    .sync-led {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--ink-muted);
+      flex-shrink: 0;
+    }
+
+    .sync-readout[data-state="synced"] .sync-led { background: var(--ok); }
+    .sync-readout[data-state="saving"] .sync-led { background: var(--warn); }
+    .sync-readout[data-state="local"] .sync-led { background: var(--sandbox-accent); }
+    .sync-readout[data-state="error"] .sync-led { background: var(--err); }
+
+    /* Top Structural Control Rail (Right: Filters + Sandbox + Editor) */
+    .control-rail {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 30;
+      height: var(--bar-h);
+      display: flex;
+      align-items: stretch;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: visible;
+    }
+
+    select, input, button {
+      font-family: inherit;
+      font-size: 12px;
+      color: var(--ink);
+    }
+
+    .rail-select {
+      height: 100%;
+      padding: 0 11px;
+      border: none;
+      border-right: 1px solid var(--border);
+      background: transparent;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .rail-select:hover,
+    .rail-select:focus {
+      background: var(--surface-alt);
+    }
+
+    .multi-filter-wrap {
+      position: relative;
+      height: 100%;
+      display: flex;
+      align-items: stretch;
+    }
+
+    .multi-filter-btn {
+      height: 100%;
+      padding: 0 12px;
+      border: none;
+      border-right: 1px solid var(--border);
+      background: transparent;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .multi-filter-btn:hover {
+      background: var(--surface-alt);
+    }
+
+    .multi-filter-popover {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 210px;
+      max-height: 270px;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      padding: 6px;
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 60;
+    }
+
+    .multi-filter-popover.open {
+      display: flex;
+    }
+
+    .multi-filter-actions {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 6px 6px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 3px;
+    }
+
+    .multi-filter-link {
+      background: none;
+      border: none;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--deat-red);
+      cursor: pointer;
+    }
+
+    .multi-filter-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .multi-filter-item:hover {
+      background: var(--surface-alt);
+    }
+
+    .multi-filter-item input[type="checkbox"] {
+      accent-color: var(--deat-red);
+      cursor: pointer;
+    }
+
+    .rail-sandbox-btn {
+      height: 100%;
+      padding: 0 13px;
+      border: none;
+      border-right: 1px solid var(--border);
+      background: transparent;
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .rail-sandbox-btn:hover {
+      background: var(--surface-alt);
+    }
+
+    .rail-sandbox-btn.is-active {
+      background: var(--sandbox-accent);
+      color: #ffffff;
+      border-right-color: var(--sandbox-accent);
+    }
+
+    .rail-editor-btn {
+      height: 100%;
+      padding: 0 14px;
+      border: none;
+      background: var(--deat-red);
+      color: #ffffff;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .rail-editor-btn:hover {
+      background: var(--deat-red-hover);
+    }
+
+    .btn {
+      height: 32px;
+      padding: 0 11px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: var(--surface-alt);
+    }
+
+    .btn-primary {
+      background: var(--deat-red);
+      border-color: var(--deat-red);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background: var(--deat-red-hover);
+      border-color: var(--deat-red-hover);
+    }
+
+    .btn-danger {
+      color: var(--err);
+      border-color: rgba(220, 38, 38, 0.35);
+      background: transparent;
+    }
+
+    .btn-danger:hover {
+      background: rgba(220, 38, 38, 0.08);
+    }
+
+    .btn-sm {
+      height: 26px;
+      padding: 0 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+    }
+
+    /* Flight / Station Inspector Rail (Left) */
+    .inspector-rail {
+      position: fixed;
+      top: 72px;
+      left: 14px;
+      width: 312px;
+      max-height: calc(100vh - 122px);
+      overflow-y: auto;
+      z-index: 35;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--deat-red);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .inspector-rail.open {
+      display: flex;
+    }
+
+    .inspector-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .inspector-tag {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--deat-red);
+    }
+
+    .inspector-name {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: capitalize;
+      margin-top: 2px;
+    }
+
+    .inspector-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-top: 1px solid var(--border);
+      border-left: 1px solid var(--border);
+    }
+
+    .metric-cell {
+      padding: 7px 8px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-alt);
+    }
+
+    .metric-key {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-muted);
+    }
+
+    .metric-val {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      margin-top: 2px;
+      word-break: break-word;
+    }
+
+    .inspector-sectors {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .sector-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+
+    .sector-row:hover {
+      background: var(--surface-alt);
+      border-color: var(--border-strong);
+    }
+
+    .swatch-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: inline-block;
+    }
+
+    /* Bottom-Left Cartographic Legend */
+    .carto-key {
+      position: fixed;
+      bottom: 14px;
+      left: 14px;
+      z-index: 30;
+      height: 32px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--ink-secondary);
+    }
+
+    .key-entry {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .key-hub {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      border: 2px solid var(--deat-red);
+      background: var(--marker-fill);
+    }
+
+    .key-station {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      border: 1.5px solid var(--deat-red);
+      background: var(--marker-fill);
+    }
+
+    .key-sector {
+      width: 16px;
+      height: 2px;
+      background: var(--deat-red);
+    }
+
+    /* Bottom-Right Zoom & Theme Strip (+ / - / Reset / Dark Mode) */
+    .zoom-strip {
+      position: fixed;
+      bottom: 14px;
+      right: 14px;
+      z-index: 30;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .zoom-btn {
+      height: 100%;
+      padding: 0 10px;
+      border: none;
+      border-right: 1px solid var(--border);
+      background: transparent;
+      color: var(--ink);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      line-height: 1;
+      text-transform: uppercase;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
+    }
+
+    .zoom-btn:last-child {
+      border-right: none;
+    }
+
+    .zoom-btn:hover {
+      background: var(--surface-alt);
+    }
+
+    .zoom-btn.is-active {
+      background: var(--surface-alt);
+      color: var(--deat-red);
+    }
+
+    /* Map SVG Styling */
+    .airport-node {
+      cursor: pointer;
+    }
+
+    .route-hit-area {
+      fill: none;
+      stroke: transparent;
+      cursor: pointer;
+    }
+
+    .route-visible-path {
+      fill: none;
+      stroke-linecap: round;
+      pointer-events: none;
+      transition: opacity 0.14s ease;
+    }
+
+    .map-label-city {
+      font-weight: 700;
+      font-style: italic;
+      pointer-events: none;
+      paint-order: stroke;
+      stroke-linejoin: round;
+    }
+
+    .map-label-icao {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      pointer-events: none;
+      paint-order: stroke;
+      stroke-linejoin: round;
+    }
+
+    .map-route-count {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      pointer-events: none;
+      paint-order: stroke;
+      stroke-linejoin: round;
+    }
+
+    /* Modals */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(12, 15, 20, 0.62);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 1000;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-card {
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      width: 96vw;
+      max-width: 1680px;
+      max-height: 94vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 1001;
+    }
+
+    .editor-modal-body {
+      padding: 14px 18px;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .editor-split-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      flex: 1;
+      min-height: 0;
+      align-items: stretch;
+    }
+
+    .editor-split-layout .editor-section {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .editor-split-layout .editor-section form {
+      flex-shrink: 0;
+    }
+
+    .editor-split-layout .editor-section .table-wrap {
+      flex: 1;
+      min-height: 140px;
+      overflow-y: auto;
+      overflow-x: auto;
+    }
+
+    .editor-split-layout .editor-section .table-wrap thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    @media (max-width: 1120px) {
+      .editor-modal-body {
+        overflow-y: auto;
+      }
+      .editor-split-layout {
+        grid-template-columns: minmax(0, 1fr);
+        flex: none;
+      }
+      .editor-split-layout .editor-section {
+        height: auto;
+        overflow: visible;
+      }
+      .editor-split-layout .editor-section .table-wrap {
+        max-height: 320px;
+      }
+    }
+
+    .modal-card.modal-sm {
+      max-width: 410px;
+    }
+
+    .modal-header {
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--surface-alt);
+    }
+
+    .modal-header h2 {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .modal-body {
+      padding: 16px 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-footer {
+      padding: 11px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--surface-alt);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .editor-section {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .editor-section h3 {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-secondary);
+    }
+
+    .form-grid-airport {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-items: end;
+    }
+
+    .form-grid-airport .field-span-2 {
+      grid-column: span 2;
+    }
+
+    .form-grid-route {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-items: end;
+    }
+
+    .form-grid-route .field-span-2 {
+      grid-column: span 2;
+    }
+
+    @media (max-width: 900px) {
+      .form-grid-airport,
+      .form-grid-route {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .field label {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--ink-muted);
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      min-width: 0;
+      height: 32px;
+      padding: 0 9px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      outline: none;
+    }
+
+    .field input[type="color"] {
+      padding: 2px 3px;
+      width: 42px;
+      cursor: pointer;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: var(--deat-red);
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .editor-row-clickable {
+      cursor: pointer;
+    }
+
+    .editor-row-clickable:hover td {
+      background: var(--surface-alt);
+    }
+
+    th, td {
+      padding: 7px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .sort-th-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--ink-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .sort-th-btn:hover,
+    .sort-th-btn.active {
+      color: var(--ink);
+    }
+
+    .sort-ind {
+      font-size: 9px;
+      color: var(--deat-red);
+    }
+
+    th {
+      background: var(--surface-alt);
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--ink-muted);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .badge-hub {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: rgba(238, 28, 37, 0.12);
+      color: var(--deat-red);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .ac-chip {
+      display: inline-block;
+      padding: 1px 5px;
+      margin: 1px 2px 1px 0;
+      border-radius: 2px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .error-msg {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--err);
+      min-height: 16px;
+    }
+
+    .hint-text {
+      font-size: 11.5px;
+      color: var(--ink-muted);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <!-- Full-bleed Cartographic Canvas -->
+  <main class="map-viewport">
+    <svg id="network-map" role="img" aria-label="DEAT Global Route Network Map"></svg>
+  </main>
+
+  <!-- Prominent Sandbox Mode Banner -->
+  <div class="sandbox-banner" id="sandbox-banner" role="status" aria-live="polite">
+    <span class="sandbox-pill">SANDBOX</span>
+    <span>LOCAL SANDBOX MODE — NO DATA SENT TO BACKEND</span>
+  </div>
+
+  <!-- Top-Left DEAT Masthead & Live Network Readout -->
+  <div class="masthead">
+    <div class="deat-mark">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" fill="none" width="20" height="17" aria-hidden="true">
+        <circle cx="64" cy="52" r="28" stroke="#FFFFFF" stroke-width="8.5"/>
+        <path d="M18 14C33 33 57 44 95 47C69 54 53 67 39 86C46 65 39 45 18 14Z" fill="#FFFFFF"/>
+      </svg>
+      <span class="deat-wordmark">DEAT</span>
+    </div>
+    <div class="masthead-meta">
+      <div class="masthead-title" id="masthead-subtitle">global passenger network</div>
+      <div class="masthead-telemetry" id="network-summary">0 HUBS · 0/0 AIRPORTS · 0 SECTORS</div>
+    </div>
+    <div class="sync-readout" id="sync-status" data-state="saving" title="Firestore synchronization status">
+      <span class="sync-led"></span>
+      <span id="sync-status-text">SYNCING</span>
+    </div>
+  </div>
+
+  <!-- Top-Right Filter & Editor Rail -->
+  <div class="control-rail">
+    <select id="filter-hub" class="rail-select" aria-label="Filter by hub">
+      <option value="ALL">HUB: ALL</option>
+    </select>
+
+    <select id="filter-continent" class="rail-select" aria-label="Filter by continent">
+      <option value="ALL">REGION: ALL</option>
+      <option value="Europe">Europe</option>
+      <option value="North America">North America</option>
+      <option value="South America">South America</option>
+      <option value="Asia">Asia</option>
+      <option value="Middle East">Middle East</option>
+      <option value="Africa">Africa</option>
+      <option value="Oceania">Oceania</option>
+    </select>
+
+    <select id="filter-type" class="rail-select" aria-label="Filter by route type">
+      <option value="ALL">TYPE: ALL</option>
+    </select>
+
+    <div class="multi-filter-wrap">
+      <button type="button" class="multi-filter-btn" id="aircraft-toggle-btn" aria-expanded="false">
+        FLEET: ALL
+      </button>
+      <div class="multi-filter-popover" id="aircraft-popover" role="group" aria-label="Toggle aircraft types">
+        <div class="multi-filter-actions">
+          <button type="button" class="multi-filter-link" id="ac-select-all">Select All</button>
+          <button type="button" class="multi-filter-link" id="ac-clear-all">Clear</button>
+        </div>
+        <div id="aircraft-checkbox-list"></div>
+      </div>
+    </div>
+
+    <button type="button" class="rail-sandbox-btn" id="sandbox-mode-btn" style="display:none;" aria-pressed="false" title="Local Sandbox Mode (Logged-in users only)">
+      Sandbox Mode
+    </button>
+
+    <button type="button" class="rail-editor-btn" id="open-editor-btn">Network Editor</button>
+  </div>
+
+  <!-- Sandbox Bottom Control Dock (Local Only) -->
+  <div class="sandbox-dock" id="sandbox-dock" role="region" aria-label="Sandbox controls">
+    <span class="sandbox-status-text" id="sandbox-prompt-text">
+      <strong>SANDBOX:</strong> Click an airport to start a route · Click a route to delete
+    </span>
+    <span class="sandbox-divider"></span>
+    <label class="sandbox-color-label" for="sandbox-route-color">
+      Color
+      <input type="color" id="sandbox-route-color" value="#EE1C25" title="Color for new or selected sandbox route" />
+    </label>
+    <button type="button" class="sandbox-preset" data-sb-color="#EE1C25" style="background:#EE1C25;" title="Red"></button>
+    <button type="button" class="sandbox-preset" data-sb-color="#0284c7" style="background:#0284c7;" title="Blue"></button>
+    <button type="button" class="sandbox-preset" data-sb-color="#15803d" style="background:#15803d;" title="Green"></button>
+    <button type="button" class="sandbox-preset" data-sb-color="#d97706" style="background:#d97706;" title="Amber"></button>
+    <button type="button" class="sandbox-preset" data-sb-color="#7c3aed" style="background:#7c3aed;" title="Purple"></button>
+    <span class="sandbox-divider"></span>
+    <input type="file" id="sandbox-import-input" accept=".json,application/json" style="display:none;" />
+    <button type="button" class="btn btn-sm" id="sandbox-import-btn">Import Sandbox</button>
+    <button type="button" class="btn btn-sm" id="sandbox-export-btn">Export Sandbox</button>
+    <button type="button" class="btn btn-sm btn-danger" id="sandbox-clear-btn">Clear Routes</button>
+    <button type="button" class="btn btn-sm" id="sandbox-exit-btn">Exit Sandbox</button>
+  </div>
+
+  <!-- Left Flight / Station Inspector Rail -->
+  <aside class="inspector-rail" id="inspector-card" aria-live="polite">
+    <div class="inspector-head">
+      <div>
+        <div class="inspector-tag" id="inspector-kicker">Station Profile</div>
+        <div class="inspector-name" id="inspector-title">&mdash;</div>
+      </div>
+      <button type="button" class="btn btn-sm" id="close-inspector-btn">Close</button>
+    </div>
+    <div class="inspector-metrics" id="inspector-stats"></div>
+    <div id="inspector-extra" class="hint-text"></div>
+    <div class="inspector-sectors" id="inspector-list"></div>
+  </aside>
+
+  <!-- Bottom-Left Cartographic Legend -->
+  <div class="carto-key">
+    <div class="key-entry"><span class="key-hub"></span> Hub</div>
+    <div class="key-entry"><span class="key-station"></span> Station</div>
+    <div class="key-entry"><span class="key-sector"></span> Sector</div>
+  </div>
+
+  <!-- Bottom-Right Zoom & Theme Strip -->
+  <div class="zoom-strip">
+    <button type="button" class="zoom-btn" id="show-all-airports-btn" hidden style="display:none;" aria-pressed="false" title="Show all airports on the map, even when filtered">All Airports</button>
+    <button type="button" class="zoom-btn" id="zoom-in-btn" title="Zoom in">+</button>
+    <button type="button" class="zoom-btn" id="zoom-out-btn" title="Zoom out">&minus;</button>
+    <button type="button" class="zoom-btn" id="zoom-reset-btn" title="Reset global view">Reset</button>
+    <button type="button" class="zoom-btn" id="dark-mode-btn" title="Toggle dark mode">Dark Mode</button>
+  </div>
+
+  <!-- Authentication Modal -->
+  <div class="modal-backdrop" id="auth-modal" aria-hidden="true">
+    <div class="modal-card modal-sm" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+      <div class="modal-header">
+        <h2 id="auth-modal-title">Editor Authentication</h2>
+        <button type="button" class="btn btn-sm" id="close-auth-btn">Close</button>
+      </div>
+      <form id="auth-form">
+        <div class="modal-body">
+          <p class="hint-text">Sign in with your authorized editor account to access the Network Editor and publish changes to Firebase.</p>
+          <div class="field">
+            <label for="auth-email">Editor Email</label>
+            <input type="email" id="auth-email" autocomplete="email" placeholder="editor@deat.aero" required />
+          </div>
+          <div class="field">
+            <label for="auth-password">Password</label>
+            <input type="password" id="auth-password" autocomplete="current-password" placeholder="Enter password" required />
+          </div>
+          <div class="error-msg" id="auth-error"></div>
+        </div>
+        <div class="modal-footer">
+          <span class="hint-text">Firebase Auth</span>
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn">Sign In</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Network Editor Modal -->
+  <div class="modal-backdrop" id="editor-modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editor-modal-title">
+      <div class="modal-header">
+        <h2 id="editor-modal-title">Network Editor</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="hint-text" id="editor-user-badge"></span>
+          <button type="button" class="btn btn-sm" id="signout-btn" style="display:none;">Sign Out</button>
+          <button type="button" class="btn btn-sm" id="close-editor-btn">Close</button>
+        </div>
+      </div>
+
+      <div class="editor-modal-body">
+        <div class="editor-split-layout">
+          <section class="editor-section">
+            <h3>Airports &amp; Hubs</h3>
+            <form id="add-airport-form" class="form-grid-airport">
+              <div class="field">
+                <label for="airport-city">City Name</label>
+                <input type="text" id="airport-city" placeholder="e.g. Vienna" required />
+              </div>
+              <div class="field">
+                <label for="airport-icao">ICAO / IATA</label>
+                <input type="text" id="airport-icao" maxlength="4" placeholder="LOWW" style="text-transform:uppercase;" required />
+              </div>
+              <div class="field">
+                <label for="airport-lat">Latitude</label>
+                <input type="number" id="airport-lat" step="0.0001" min="-85" max="85" placeholder="48.1103" required />
+              </div>
+              <div class="field">
+                <label for="airport-lon">Longitude</label>
+                <input type="number" id="airport-lon" step="0.0001" min="-180" max="180" placeholder="16.5697" required />
+              </div>
+              <div class="field">
+                <label for="airport-continent">Region</label>
+                <select id="airport-continent">
+                  <option value="Europe">Europe</option>
+                  <option value="North America">North America</option>
+                  <option value="South America">South America</option>
+                  <option value="Asia">Asia</option>
+                  <option value="Middle East">Middle East</option>
+                  <option value="Africa">Africa</option>
+                  <option value="Oceania">Oceania</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="airport-type">Role</label>
+                <select id="airport-type">
+                  <option value="dest">Station</option>
+                  <option value="hub">Hub</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="airport-active">Status</label>
+                <select id="airport-active">
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>&nbsp;</label>
+                <button type="submit" class="btn btn-primary" id="airport-submit-btn">Save Airport</button>
+              </div>
+              <div class="field field-span-2">
+                <label for="airport-remarks">Internal Remarks (Editor Only)</label>
+                <input type="text" id="airport-remarks" placeholder="Internal notes, slot constraints, etc." />
+              </div>
+            </form>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th><button type="button" class="sort-th-btn" data-sort-airport="city">City <span class="sort-ind" data-ap-ind="city"></span></button></th>
+                    <th><button type="button" class="sort-th-btn" data-sort-airport="code">Code <span class="sort-ind" data-ap-ind="code"></span></button></th>
+                    <th><button type="button" class="sort-th-btn" data-sort-airport="region">Region <span class="sort-ind" data-ap-ind="region"></span></button></th>
+                    <th><button type="button" class="sort-th-btn" data-sort-airport="role">Role <span class="sort-ind" data-ap-ind="role"></span></button></th>
+                    <th><button type="button" class="sort-th-btn" data-sort-airport="status">Status <span class="sort-ind" data-ap-ind="status"></span></button></th>
+                    <th>Remarks</th>
+                    <th style="text-align:right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="airports-table-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="editor-section">
+            <h3>Flight Sectors</h3>
+            <form id="add-route-form" class="form-grid-route">
+              <div class="field">
+                <label for="route-origin">Origin</label>
+                <select id="route-origin" required></select>
+              </div>
+              <div class="field">
+                <label for="route-dest">Destination</label>
+                <select id="route-dest" required></select>
+              </div>
+              <div class="field">
+                <label for="route-aircraft">Aircraft (comma-separated)</label>
+                <input type="text" id="route-aircraft" placeholder="e.g. A320neo, B787-9" value="A320neo" required />
+              </div>
+              <div class="field">
+                <label for="route-type">Type</label>
+                <input type="text" id="route-type" placeholder="e.g. Scheduled, Charter" value="Scheduled" required />
+              </div>
+              <div class="field">
+                <label for="route-color">Color</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="color" id="route-color" value="#EE1C25" title="Route color" />
+                </div>
+              </div>
+              <div class="field">
+                <label>&nbsp;</label>
+                <button type="submit" class="btn btn-primary" id="route-submit-btn">Save Sector</button>
+              </div>
+              <div class="field field-span-2">
+                <label for="route-remarks">Internal Remarks (Editor Only)</label>
+                <input type="text" id="route-remarks" placeholder="Internal sector notes, rights, seasonality, etc." />
+              </div>
+            </form>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th><button type="button" class="sort-th-btn" data-sort-route="color">Color <span class="sort-ind" data-ind="color"></span></button></th>
+                    <th><button type="button" class="sort-th-btn" data-sort-route="origin">Origin <span class="sort-ind" data-ind="origin"></span></button></th>
+                    <th><button type="button" class="sort-th-btn" data-sort-route="dest">Destination <span class="sort-ind" data-ind="dest"></span></button></th>
+                    <th><button type="button" class="sort-th-btn" data-sort-route="aircraft">Aircraft <span class="sort-ind" data-ind="aircraft"></span></button></th>
+                    <th>Type</th>
+                    <th>Remarks</th>
+                    <th style="text-align:right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="routes-table-body"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="error-msg" id="editor-error"></div>
+      </div>
+
+      <div class="modal-footer">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input type="file" id="import-json-input" accept=".json,application/json" style="display:none;" />
+          <button type="button" class="btn btn-sm" id="import-json-btn">Import JSON</button>
+          <button type="button" class="btn btn-sm" id="export-json-btn">Export JSON</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button type="button" class="btn btn-primary" id="save-network-btn">Publish to Firebase</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Public Firebase Client Config -->
+  <script src="./firebase-config.js"></script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+
+    const FIRESTORE_COLLECTION = "networkState";
+    const FIRESTORE_DOC_ID = "default";
+    const DEFAULT_ROUTE_COLOR = "#EE1C25";
+    const HIGHLIGHT_ROUTE_COLOR = "#FF131B";
+
+    let networkData = {
+      airports: [],
+      routes: []
+    };
+
+    // Sandbox Mode state (strictly local, never sent to Firebase)
+    let sandboxMode = false;
+    let sandboxRoutes = []; // { origin, dest, color }
+    let sandboxPendingOrigin = null;
+
+    let selectedAircraftSet = new Set();
+    let currentZoomScale = 1;
+    let currentZoomTransform = d3.zoomIdentity;
+
+    let firebaseReady = false;
+    let auth = null;
+    let db = null;
+    let stateDocRef = null;
+    let currentUser = null;
+
+    let selectedAirportIcao = null;
+    let selectedRouteKey = null;
+    let hoveredAirportIcao = null;
+    let showAllAirports = false;
+    let airportSortField = null;
+    let airportSortDir = "asc";
+    let routeSortField = null;
+    let routeSortDir = "asc";
+
+    const statusEl = document.getElementById("sync-status");
+    const statusTextEl = document.getElementById("sync-status-text");
+    const sandboxModeBtn = document.getElementById("sandbox-mode-btn");
+    const sandboxPromptTextEl = document.getElementById("sandbox-prompt-text");
+    const sandboxColorInput = document.getElementById("sandbox-route-color");
+
+    function updateSyncBadge() {
+      if (sandboxMode) {
+        setSyncStatus("local", "SANDBOX LOCAL");
+        return;
+      }
+      if (!firebaseReady) {
+        if (!isFirebaseConfigured()) {
+          setSyncStatus("error", "CONFIG NEEDED");
+        }
+        return;
+      }
+      setSyncStatus("synced", "LIVE");
+    }
+
+    function setSyncStatus(state, text) {
+      statusEl.dataset.state = state;
+      statusTextEl.textContent = text;
+    }
+
+    function isFirebaseConfigured() {
+      const cfg = window.FIREBASE_CONFIG;
+      if (!cfg || typeof cfg !== "object") return false;
+      if (!cfg.apiKey || !cfg.projectId || !cfg.authDomain) return false;
+      if (String(cfg.apiKey).includes("YOUR_") || String(cfg.projectId).includes("YOUR_")) return false;
+      return true;
+    }
+
+    function parseAircraftList(raw) {
+      if (Array.isArray(raw)) {
+        return [...new Set(raw.map((item) => String(item || "").trim()).filter(Boolean))];
+      }
+      if (typeof raw === "string") {
+        return [...new Set(raw.split(",").map((item) => item.trim()).filter(Boolean))];
+      }
+      return ["A320neo"];
+    }
+
+    function sanitizeNetworkPayload(payload) {
+      if (!payload || typeof payload !== "object") {
+        return { airports: [], routes: [] };
+      }
+      const rawAirports = Array.isArray(payload.airports) ? payload.airports : [];
+      const rawRoutes = Array.isArray(payload.routes) ? payload.routes : [];
+
+      const airports = rawAirports
+        .filter((a) => a && typeof a.icao === "string" && typeof a.city === "string")
+        .map((a) => ({
+          icao: a.icao.trim().toUpperCase().slice(0, 4),
+          city: a.city.trim().toLowerCase(),
+          lat: Math.max(-85, Math.min(85, Number(a.lat) || 0)),
+          lon: Math.max(-180, Math.min(180, Number(a.lon) || 0)),
+          continent: String(a.continent || "Europe").trim(),
+          isHub: Boolean(a.isHub),
+          active: a.active === undefined ? true : Boolean(a.active),
+          remarks: String(a.remarks || "").trim()
+        }));
+
+      const validCodes = new Set(airports.map((a) => a.icao));
+      const routes = rawRoutes
+        .filter((r) => r && validCodes.has(r.origin) && validCodes.has(r.dest) && r.origin !== r.dest)
+        .map((r) => {
+          const list = parseAircraftList(r.aircraftTypes || r.aircraft);
+          const color = /^#[0-9A-Fa-f]{6}$/.test(r.color)
+            ? r.color
+            : (/^#[0-9A-Fa-f]{6}$/.test(payload.routeColor) ? payload.routeColor : DEFAULT_ROUTE_COLOR);
+          const routeType = String(r.type || r.frequency || "Scheduled").trim() || "Scheduled";
+          return {
+            origin: r.origin,
+            dest: r.dest,
+            aircraftTypes: list.length ? list : ["A320neo"],
+            type: routeType,
+            remarks: String(r.remarks || "").trim(),
+            color
+          };
+        });
+
+      return { airports, routes };
+    }
+
+    async function initFirebaseBackend() {
+      if (!isFirebaseConfigured()) {
+        setSyncStatus("error", "CONFIG NEEDED");
+        renderAll();
+        return;
+      }
+
+      try {
+        setSyncStatus("saving", "CONNECTING");
+        const app = initializeApp(window.FIREBASE_CONFIG);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        stateDocRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
+        firebaseReady = true;
+
+        onAuthStateChanged(auth, (user) => {
+          currentUser = user;
+          updateAuthUI();
+        });
+
+        const initialSnap = await getDoc(stateDocRef);
+        if (initialSnap.exists() && initialSnap.data().payload) {
+          networkData = sanitizeNetworkPayload(initialSnap.data().payload);
+        }
+        renderAll();
+        updateSyncBadge();
+
+        onSnapshot(
+          stateDocRef,
+          (docSnap) => {
+            if (docSnap.exists() && docSnap.data().payload) {
+              networkData = sanitizeNetworkPayload(docSnap.data().payload);
+              renderAll();
+            }
+            updateSyncBadge();
+          },
+          (err) => {
+            console.error("Firestore read error:", err);
+            if (!sandboxMode) {
+              setSyncStatus("error", "ERR " + err.code.toUpperCase());
+            }
+          }
+        );
+      } catch (err) {
+        console.error("Firebase init error:", err);
+        setSyncStatus("error", "INIT FAILED");
+      }
+    }
+
+    async function publishToFirebase() {
+      if (sandboxMode) {
+        throw new Error("Sandbox Mode is local-only and cannot publish to Firebase.");
+      }
+      if (!firebaseReady || !stateDocRef) {
+        throw new Error("Firebase is not configured in firebase-config.js.");
+      }
+      if (!currentUser) {
+        throw new Error("Please sign in before publishing changes to Firebase.");
+      }
+      setSyncStatus("saving", "PUBLISHING");
+      await setDoc(stateDocRef, {
+        payload: {
+          airports: networkData.airports,
+          routes: networkData.routes
+        },
+        updatedAt: new Date().toISOString(),
+        updatedBy: currentUser.email || currentUser.uid
+      });
+      setSyncStatus("synced", "LIVE");
+    }
+
+    // =========================================================================
+    // SANDBOX MODE LOGIC (100% CLIENT-SIDE / LOCAL ONLY)
+    // =========================================================================
+    function updateSandboxPrompt() {
+      if (!sandboxMode) return;
+      if (sandboxPendingOrigin) {
+        const ap = networkData.airports.find((a) => a.icao === sandboxPendingOrigin);
+        const label = ap ? `${ap.city.toUpperCase()} (${ap.icao})` : sandboxPendingOrigin;
+        sandboxPromptTextEl.innerHTML =
+          `<strong>ORIGIN:</strong> ${label} — click destination airport (or same airport to cancel)`;
+      } else {
+        sandboxPromptTextEl.innerHTML =
+          `<strong>SANDBOX:</strong> Click an airport to start a route · Click a route to delete`;
+      }
+    }
+
+    function setSandboxMode(active) {
+      if (active && !currentUser) {
+        sandboxMode = false;
+        document.body.classList.remove("sandbox-active");
+        return;
+      }
+      sandboxMode = Boolean(active);
+      sandboxPendingOrigin = null;
+      clearInspector();
+      document.body.classList.toggle("sandbox-active", sandboxMode);
+      document.getElementById("masthead-subtitle").textContent = sandboxMode
+        ? "sandbox mode · local only"
+        : "global passenger network";
+      sandboxModeBtn.classList.toggle("is-active", sandboxMode);
+      sandboxModeBtn.setAttribute("aria-pressed", String(sandboxMode));
+      updateSandboxPrompt();
+      updateSyncBadge();
+      renderAll();
+    }
+
+    function getSandboxRouteCountMap() {
+      const counts = new Map();
+      sandboxRoutes.forEach((r) => {
+        counts.set(r.origin, (counts.get(r.origin) || 0) + 1);
+        counts.set(r.dest, (counts.get(r.dest) || 0) + 1);
+      });
+      return counts;
+    }
+
+    function handleSandboxAirportClick(airport) {
+      if (!sandboxPendingOrigin) {
+        sandboxPendingOrigin = airport.icao;
+        updateSandboxPrompt();
+        renderMap();
+        return;
+      }
+
+      if (sandboxPendingOrigin === airport.icao) {
+        sandboxPendingOrigin = null;
+        updateSandboxPrompt();
+        renderMap();
+        return;
+      }
+
+      const origin = sandboxPendingOrigin;
+      const dest = airport.icao;
+      const chosenColor = /^#[0-9A-Fa-f]{6}$/.test(sandboxColorInput.value)
+        ? sandboxColorInput.value
+        : DEFAULT_ROUTE_COLOR;
+
+      const existingIdx = sandboxRoutes.findIndex(
+        (r) => (r.origin === origin && r.dest === dest) || (r.origin === dest && r.dest === origin)
+      );
+      if (existingIdx >= 0) {
+        sandboxRoutes[existingIdx].origin = origin;
+        sandboxRoutes[existingIdx].dest = dest;
+        sandboxRoutes[existingIdx].color = chosenColor;
+      } else {
+        sandboxRoutes.push({
+          origin,
+          dest,
+          color: chosenColor
+        });
+      }
+
+      sandboxPendingOrigin = null;
+      updateSandboxPrompt();
+      renderControlsAndTables();
+      renderMap();
+    }
+
+    function handleSandboxRouteClick(routeObj) {
+      sandboxRoutes = sandboxRoutes.filter(
+        (r) => !((r.origin === routeObj.origin && r.dest === routeObj.dest) ||
+                 (r.origin === routeObj.dest && r.dest === routeObj.origin))
+      );
+      updateSandboxPrompt();
+      renderControlsAndTables();
+      renderMap();
+    }
+
+    sandboxModeBtn.addEventListener("click", () => {
+      if (!currentUser) return;
+      setSandboxMode(!sandboxMode);
+    });
+
+    document.getElementById("sandbox-exit-btn").addEventListener("click", () => {
+      setSandboxMode(false);
+    });
+
+    document.getElementById("sandbox-clear-btn").addEventListener("click", () => {
+      sandboxRoutes = [];
+      sandboxPendingOrigin = null;
+      updateSandboxPrompt();
+      renderControlsAndTables();
+      renderMap();
+    });
+
+    sandboxColorInput.addEventListener("input", () => {
+      const newColor = sandboxColorInput.value;
+      if (sandboxPendingOrigin) {
+        const existing = sandboxRoutes.find(
+          (r) => r.origin === sandboxPendingOrigin || r.dest === sandboxPendingOrigin
+        );
+        if (existing) {
+          existing.color = newColor;
+          renderMap();
+        }
+      }
+    });
+
+    document.querySelectorAll(".sandbox-preset").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const col = btn.getAttribute("data-sb-color");
+        if (col) {
+          sandboxColorInput.value = col;
+          renderMap();
+        }
+      });
+    });
+
+    document.getElementById("sandbox-export-btn").addEventListener("click", () => {
+      const exportPayload = {
+        sandbox: true,
+        exportedAt: new Date().toISOString(),
+        defaultColor: sandboxColorInput.value,
+        routes: sandboxRoutes.map((r) => ({
+          origin: r.origin,
+          dest: r.dest,
+          color: r.color || DEFAULT_ROUTE_COLOR
+        }))
+      };
+      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "deat-sandbox-routes.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    const sandboxImportInput = document.getElementById("sandbox-import-input");
+    document.getElementById("sandbox-import-btn").addEventListener("click", () => {
+      sandboxImportInput.value = "";
+      sandboxImportInput.click();
+    });
+
+    sandboxImportInput.addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const rawRoutes = Array.isArray(parsed)
+          ? parsed
+          : (parsed && Array.isArray(parsed.routes) ? parsed.routes : null);
+        if (!rawRoutes) {
+          throw new Error("Sandbox JSON must contain a 'routes' array.");
+        }
+        const validIcaos = new Set(networkData.airports.map((a) => a.icao));
+        const imported = [];
+        for (const r of rawRoutes) {
+          if (!r || typeof r.origin !== "string" || typeof r.dest !== "string") continue;
+          const o = r.origin.trim().toUpperCase();
+          const d = r.dest.trim().toUpperCase();
+          if (!validIcaos.has(o) || !validIcaos.has(d) || o === d) continue;
+          const col = /^#[0-9A-Fa-f]{6}$/.test(r.color) ? r.color : DEFAULT_ROUTE_COLOR;
+          imported.push({ origin: o, dest: d, color: col });
+        }
+        if (parsed && typeof parsed.defaultColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(parsed.defaultColor)) {
+          sandboxColorInput.value = parsed.defaultColor;
+        }
+        sandboxRoutes = imported;
+        sandboxPendingOrigin = null;
+        updateSandboxPrompt();
+        renderControlsAndTables();
+        renderMap();
+      } catch (err) {
+        alert(err.message || "Failed to import sandbox JSON.");
+      }
+    });
+
+    // =========================================================================
+    // D3 CARTOGRAPHIC NETWORK ENGINE
+    // =========================================================================
+    const svg = d3.select("#network-map");
+    const mapLayer = svg.append("g").attr("class", "map-layer");
+    const landGroup = mapLayer.append("g").attr("class", "land-group");
+    const routesGroup = mapLayer.append("g").attr("class", "routes-group");
+    const nodesGroup = mapLayer.append("g").attr("class", "nodes-group");
+
+    let worldLandGeoJson = null;
+
+    function sanitizeGeoJsonFeatures(geojson) {
+      if (!geojson || !geojson.features) return geojson;
+      const cleanRing = (ring) => {
+        if (!Array.isArray(ring) || ring.length < 4) return null;
+        return ring.map(([lon, lat]) => [
+          Math.max(-179.95, Math.min(179.95, lon)),
+          Math.max(-84, Math.min(84, lat))
+        ]);
+      };
+
+      return {
+        ...geojson,
+        features: geojson.features.map((feat) => {
+          const geom = feat.geometry;
+          if (!geom) return feat;
+          if (geom.type === "Polygon") {
+            return { ...feat, geometry: { ...geom, coordinates: geom.coordinates.map(cleanRing).filter(Boolean) } };
+          }
+          if (geom.type === "MultiPolygon") {
+            return {
+              ...feat,
+              geometry: {
+                ...geom,
+                coordinates: geom.coordinates.map((p) => p.map(cleanRing).filter(Boolean)).filter((p) => p.length > 0)
+              }
+            };
+          }
+          return feat;
+        })
+      };
+    }
+
+    function computeSplitFlightArcs(src, dst, steps = 80) {
+      const interp = d3.geoInterpolate([src.lon, src.lat], [dst.lon, dst.lat]);
+      const segments = [[]];
+      let prevLon = null;
+
+      for (let i = 0; i <= steps; i++) {
+        const [lon, lat] = interp(i / steps);
+        if (prevLon !== null && Math.abs(lon - prevLon) > 170) {
+          segments.push([]);
+        }
+        segments[segments.length - 1].push([lon, lat]);
+        prevLon = lon;
+      }
+      return segments.filter((seg) => seg.length >= 2);
+    }
+
+    function calculateGreatCircleNm(src, dst) {
+      const rad = d3.geoDistance([src.lon, src.lat], [dst.lon, dst.lat]);
+      return Math.round((rad * 6371) / 1.852);
+    }
+
+    function estimateLabelBox(ap, screenPt) {
+      const isHub = Boolean(ap.isHub);
+      const isSel = ap.icao === selectedAirportIcao || ap.icao === sandboxPendingOrigin;
+      const cityText = String(ap.city || "");
+      const avgCharW = isHub || isSel ? 6.8 : 5.8;
+      const textW = Math.max(38, Math.min(130, cityText.length * avgCharW + 12));
+      const boxH = sandboxMode ? 36 : (isHub || isSel ? 24 : 16);
+      const x = screenPt[0] - textW / 2;
+      const y = screenPt[1] - (sandboxMode ? 18 : 0) + 5;
+      return { left: x, right: x + textW, top: y, bottom: y + boxH };
+    }
+
+    function boxesOverlap(a, b, pad = 3) {
+      return !(
+        a.right + pad < b.left ||
+        a.left - pad > b.right ||
+        a.bottom + pad < b.top ||
+        a.top - pad > b.bottom
+      );
+    }
+
+    // Constant line weight regardless of zoom: 2px normal, 4px highlighted
+    function applyConstantRouteWeights(scale) {
+      const k = Math.max(1, scale || 1);
+      const invK = 1 / k;
+      routesGroup.selectAll("path.route-visible-path")
+        .attr("stroke-width", (d) => ((d.isHighlighted ? 4 : 2) * invK).toFixed(4));
+      routesGroup.selectAll("path.route-hit-area")
+        .attr("stroke-width", (14 * invK).toFixed(4));
+      landGroup.selectAll("path.land-path")
+        .attr("stroke-width", (0.65 * invK).toFixed(4));
+    }
+
+    function applyZoomScaledLabelStyles(scale) {
+      const k = Math.max(1, scale || 1);
+      const invK = 1 / k;
+
+      nodesGroup.selectAll("g.airport-node")
+        .attr("transform", (d) => {
+          const base = d._basePos || [0, 0];
+          return `translate(${base[0]}, ${base[1]}) scale(${invK.toFixed(4)})`;
+        });
+
+      nodesGroup.selectAll("circle.outer-ring")
+        .attr("r", (d) => {
+          const isFocus = d.icao === selectedAirportIcao || d.icao === sandboxPendingOrigin;
+          return isFocus ? 7.5 : d.isHub ? 6.2 : 4.2;
+        })
+        .attr("stroke-width", (d) => {
+          const isFocus = d.icao === selectedAirportIcao || d.icao === sandboxPendingOrigin;
+          return isFocus ? 2.8 : d.isHub ? 2.4 : 1.9;
+        });
+
+      nodesGroup.selectAll("circle.inner-dot")
+        .attr("r", (d) => {
+          const isFocus = d.icao === selectedAirportIcao || d.icao === sandboxPendingOrigin;
+          return d.isHub || isFocus ? 2.3 : 0;
+        });
+
+      nodesGroup.selectAll("text.map-route-count")
+        .style("display", sandboxMode ? null : "none")
+        .style("font-size", "12px")
+        .style("stroke-width", "3.2px")
+        .attr("y", -11);
+
+      const placedBoxes = [];
+      const showLabelSet = new Set();
+      const allNodes = nodesGroup.selectAll("g.airport-node").data();
+
+      const rankScore = (ap) => {
+        let s = 0;
+        if (ap.icao === selectedAirportIcao || ap.icao === sandboxPendingOrigin) s += 1000;
+        if (sandboxMode) s += 600;
+        if (ap.isHub) s += 500;
+        if (k >= 2.2) s += 80;
+        if (k >= 4.0) s += 120;
+        s -= (ap.icao.charCodeAt(3) || 0) * 0.1;
+        return s;
+      };
+
+      const sortedForLabels = [...allNodes].sort((a, b) => rankScore(b) - rankScore(a));
+
+      for (const ap of sortedForLabels) {
+        const base = ap._basePos;
+        if (!base || Number.isNaN(base[0]) || Number.isNaN(base[1])) continue;
+        const screenPt = currentZoomTransform.apply(base);
+        const pad = sandboxMode ? 1 : (k >= 5 ? 1 : k >= 2.8 ? 2 : 5);
+        const box = estimateLabelBox(ap, screenPt);
+        const collides = placedBoxes.some((b) => boxesOverlap(box, b, pad));
+        const mustShow = ap.icao === selectedAirportIcao || ap.icao === sandboxPendingOrigin || ap.isHub || sandboxMode;
+
+        if (mustShow || !collides) {
+          showLabelSet.add(ap.icao);
+          placedBoxes.push(box);
+        }
+      }
+
+      nodesGroup.selectAll("text.map-label-city")
+        .style("font-size", (d) => (d.isHub || d.icao === selectedAirportIcao || d.icao === sandboxPendingOrigin ? "13.5px" : "11.5px"))
+        .style("stroke-width", "3.2px")
+        .attr("y", (d) => (d.isHub || d.icao === selectedAirportIcao || d.icao === sandboxPendingOrigin ? 17 : 15))
+        .style("display", (d) => (showLabelSet.has(d.icao) ? null : "none"));
+
+      nodesGroup.selectAll("text.map-label-icao")
+        .style("font-size", "10.5px")
+        .style("stroke-width", "2.8px")
+        .attr("y", (d) => (d.isHub || d.icao === selectedAirportIcao || d.icao === sandboxPendingOrigin ? 27.5 : 24.5))
+        .style("display", (d) => {
+          if (!showLabelSet.has(d.icao)) return "none";
+          return (d.isHub || d.icao === selectedAirportIcao || d.icao === sandboxPendingOrigin || k >= 2.2) ? null : "none";
+        });
+    }
+
+    const zoomBehavior = d3.zoom()
+      .scaleExtent([1, 12])
+      .on("zoom", (event) => {
+        currentZoomTransform = event.transform;
+        currentZoomScale = event.transform.k || 1;
+        mapLayer.attr("transform", event.transform);
+        applyConstantRouteWeights(currentZoomScale);
+        applyZoomScaledLabelStyles(currentZoomScale);
+      });
+
+    svg.call(zoomBehavior);
+
+    svg.on("click", (event) => {
+      if (event.target === svg.node() || event.target.classList.contains("land-path")) {
+        if (sandboxMode && sandboxPendingOrigin) {
+          sandboxPendingOrigin = null;
+          updateSandboxPrompt();
+          renderMap();
+        }
+        clearInspector();
+      }
+    });
+
+    document.getElementById("zoom-in-btn").addEventListener("click", () => {
+      svg.transition().duration(240).call(zoomBehavior.scaleBy, 1.5);
+    });
+    document.getElementById("zoom-out-btn").addEventListener("click", () => {
+      svg.transition().duration(240).call(zoomBehavior.scaleBy, 1 / 1.5);
+    });
+    document.getElementById("zoom-reset-btn").addEventListener("click", () => {
+      svg.transition().duration(300).call(zoomBehavior.transform, d3.zoomIdentity);
+    });
+
+    const zoomStripEl = document.querySelector(".zoom-strip");
+    let showAllAirportsBtn = document.getElementById("show-all-airports-btn");
+
+    function handleToggleAllAirports() {
+      if (!currentUser) {
+        showAllAirports = false;
+        syncAllAirportsBtn();
+        renderMap();
+        return;
+      }
+      showAllAirports = !showAllAirports;
+      syncAllAirportsBtn();
+      renderMap();
+    }
+
+    function syncAllAirportsBtn() {
+      const signedIn = Boolean(currentUser);
+      const enabled = Boolean(signedIn && showAllAirports);
+      if (!signedIn) {
+        showAllAirports = false;
+        if (showAllAirportsBtn && showAllAirportsBtn.parentNode) {
+          showAllAirportsBtn.parentNode.removeChild(showAllAirportsBtn);
+        }
+        showAllAirportsBtn = null;
+        return;
+      }
+      if (!showAllAirportsBtn || !showAllAirportsBtn.parentNode) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "zoom-btn";
+        btn.id = "show-all-airports-btn";
+        btn.title = "Show all airports on the map, even when filtered";
+        btn.textContent = "All Airports";
+        btn.addEventListener("click", handleToggleAllAirports);
+        zoomStripEl.insertBefore(btn, zoomStripEl.firstChild);
+        showAllAirportsBtn = btn;
+      }
+      showAllAirportsBtn.style.display = "";
+      showAllAirportsBtn.setAttribute("aria-pressed", String(enabled));
+      showAllAirportsBtn.classList.toggle("is-active", enabled);
+    }
+
+    function getFilteredNetwork() {
+      const hubVal = document.getElementById("filter-hub").value;
+      const contVal = document.getElementById("filter-continent").value;
+      const typeVal = document.getElementById("filter-type").value;
+      const hasAircraftFilter = selectedAircraftSet.size > 0;
+
+      const includeAll = Boolean(currentUser && showAllAirports);
+      const activeAirports = includeAll
+        ? [...networkData.airports]
+        : networkData.airports.filter((a) => a.active !== false);
+      const airportByIcao = new Map(activeAirports.map((a) => [a.icao, a]));
+
+      if (sandboxMode) {
+        const sandboxFiltered = sandboxRoutes.filter((r) => {
+          const o = airportByIcao.get(r.origin);
+          const d = airportByIcao.get(r.dest);
+          if (!o || !d) return false;
+          if (hubVal !== "ALL" && r.origin !== hubVal && r.dest !== hubVal) return false;
+          if (contVal !== "ALL" && o.continent !== contVal && d.continent !== contVal) return false;
+          return true;
+        });
+
+        const visibleAirports = activeAirports.filter((a) => {
+          if (contVal !== "ALL" && a.continent !== contVal) return false;
+          return true;
+        });
+
+        return { filteredRoutes: sandboxFiltered, visibleAirports, airportByIcao };
+      }
+
+      const filteredRoutes = networkData.routes.filter((r) => {
+        const o = airportByIcao.get(r.origin);
+        const d = airportByIcao.get(r.dest);
+        if (!o || !d) return false;
+        if (hubVal !== "ALL" && r.origin !== hubVal && r.dest !== hubVal) return false;
+        if (contVal !== "ALL" && o.continent !== contVal && d.continent !== contVal) return false;
+        const rType = String(r.type || r.frequency || "Scheduled").trim();
+        if (typeVal !== "ALL" && rType !== typeVal) return false;
+        if (hasAircraftFilter) {
+          const matchesAny = r.aircraftTypes.some((ac) => selectedAircraftSet.has(ac));
+          if (!matchesAny) return false;
+        }
+        return true;
+      });
+
+      const visibleIcaos = new Set();
+      if (includeAll || (hubVal === "ALL" && contVal === "ALL" && typeVal === "ALL" && !hasAircraftFilter)) {
+        activeAirports.forEach((a) => visibleIcaos.add(a.icao));
+      } else {
+        if (hubVal !== "ALL" && airportByIcao.has(hubVal)) visibleIcaos.add(hubVal);
+        filteredRoutes.forEach((r) => {
+          visibleIcaos.add(r.origin);
+          visibleIcaos.add(r.dest);
+        });
+        if (contVal !== "ALL" && filteredRoutes.length === 0) {
+          activeAirports.filter((a) => a.continent === contVal).forEach((a) => visibleIcaos.add(a.icao));
+        }
+      }
+
+      const visibleAirports = activeAirports.filter((a) => visibleIcaos.has(a.icao));
+      return { filteredRoutes, visibleAirports, airportByIcao };
+    }
+
+    function renderMap() {
+      const width = window.innerWidth || 1280;
+      const height = window.innerHeight || 720;
+      svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+      const isDarkMode = document.body.classList.contains("dark-mode");
+      const markerFill = isDarkMode ? "#0c0f14" : "#ffffff";
+      const labelHalo = isDarkMode ? "#0c0f14" : "#ffffff";
+
+      const projection = d3.geoNaturalEarth1()
+        .scale(Math.min(width / 5.3, height / 2.65))
+        .translate([width / 2, height / 1.9]);
+
+      const pathGenerator = d3.geoPath().projection(projection);
+
+      if (worldLandGeoJson) {
+        landGroup.selectAll("path")
+          .data(worldLandGeoJson.features)
+          .join("path")
+          .attr("class", "land-path")
+          .attr("d", pathGenerator)
+          .attr("fill", isDarkMode ? "#1c222e" : "#d8dce2")
+          .attr("stroke", isDarkMode ? "#0c0f14" : "#ffffff")
+          .attr("stroke-width", 0.65);
+      }
+
+      const { filteredRoutes, visibleAirports, airportByIcao } = getFilteredNetwork();
+      const sandboxCounts = sandboxMode ? getSandboxRouteCountMap() : new Map();
+
+      const lineBuilder = d3.line()
+        .x((d) => projection(d)[0])
+        .y((d) => projection(d)[1])
+        .curve(d3.curveCatmullRom.alpha(0.5));
+
+      const routeItems = [];
+      filteredRoutes.forEach((r) => {
+        const src = airportByIcao.get(r.origin);
+        const dst = airportByIcao.get(r.dest);
+        if (!src || !dst) return;
+        const rKey = `${r.origin}->${r.dest}`;
+        const activeFocusAirport = hoveredAirportIcao || selectedAirportIcao || sandboxPendingOrigin;
+        const isHighlighted =
+          selectedRouteKey === rKey ||
+          (activeFocusAirport && (r.origin === activeFocusAirport || r.dest === activeFocusAirport));
+        const isDimmed = !sandboxMode && (selectedRouteKey || activeFocusAirport) && !isHighlighted;
+        const routeColor = r.color || DEFAULT_ROUTE_COLOR;
+
+        const segments = computeSplitFlightArcs(src, dst);
+        segments.forEach((coords, idx) => {
+          routeItems.push({
+            segKey: `${rKey}#${idx}`,
+            rKey,
+            route: r,
+            coords,
+            color: sandboxMode ? routeColor : (isHighlighted ? HIGHLIGHT_ROUTE_COLOR : routeColor),
+            isHighlighted,
+            isDimmed
+          });
+        });
+      });
+
+      const routeGroups = routesGroup.selectAll("g.route-group")
+        .data(routeItems, (d) => d.segKey)
+        .join((enter) => {
+          const g = enter.append("g").attr("class", "route-group");
+          g.append("path").attr("class", "route-visible-path");
+          g.append("path").attr("class", "route-hit-area");
+          return g;
+        });
+
+      routeGroups.select("path.route-visible-path")
+        .attr("d", (d) => lineBuilder(d.coords))
+        .attr("stroke", (d) => d.color)
+        .attr("opacity", (d) => (d.isDimmed ? 0.16 : 0.94));
+
+      routeGroups.select("path.route-hit-area")
+        .attr("d", (d) => lineBuilder(d.coords))
+        .on("click", (event, d) => {
+          event.stopPropagation();
+          if (sandboxMode) {
+            handleSandboxRouteClick(d.route);
+          } else {
+            selectRoute(d.route);
+          }
+        });
+
+      const nodeGroups = nodesGroup.selectAll("g.airport-node")
+        .data(visibleAirports, (d) => d.icao)
+        .join((enter) => {
+          const g = enter.append("g").attr("class", "airport-node");
+          g.append("text").attr("class", "map-route-count");
+          g.append("circle").attr("class", "outer-ring");
+          g.append("circle").attr("class", "inner-dot");
+          g.append("text").attr("class", "map-label-city");
+          g.append("text").attr("class", "map-label-icao");
+          return g;
+        });
+
+      visibleAirports.forEach((d) => {
+        d._basePos = projection([d.lon, d.lat]);
+        d._sandboxCount = sandboxCounts.get(d.icao) || 0;
+      });
+
+      nodeGroups
+        .attr("transform", (d) => {
+          const [x, y] = d._basePos || [0, 0];
+          const invK = 1 / Math.max(1, currentZoomScale || 1);
+          return `translate(${x}, ${y}) scale(${invK.toFixed(4)})`;
+        })
+        .on("mouseenter", (event, d) => {
+          if (hoveredAirportIcao !== d.icao) {
+            hoveredAirportIcao = d.icao;
+            renderMap();
+          }
+        })
+        .on("mouseleave", () => {
+          if (hoveredAirportIcao !== null) {
+            hoveredAirportIcao = null;
+            renderMap();
+          }
+        })
+        .on("click", (event, d) => {
+          event.stopPropagation();
+          if (sandboxMode) {
+            handleSandboxAirportClick(d);
+          } else {
+            selectAirport(d);
+          }
+        });
+
+      nodeGroups.select("text.map-route-count")
+        .attr("text-anchor", "middle")
+        .style("stroke", labelHalo)
+        .attr("fill", (d) => (d._sandboxCount > 0 ? "#d97706" : (isDarkMode ? "#94a3b8" : "#4b525c")))
+        .text((d) => String(d._sandboxCount || 0));
+
+      nodeGroups.select("circle.outer-ring")
+        .attr("fill", (d) => (d.icao === sandboxPendingOrigin ? "#d97706" : markerFill))
+        .attr("stroke", (d) => {
+          if (d.icao === sandboxPendingOrigin) return "#d97706";
+          return d.active === false ? "#94a3b8" : "#EE1C25";
+        })
+        .attr("stroke-dasharray", (d) => (d.active === false ? "2.5,2" : null))
+        .attr("opacity", (d) => (d.active === false ? 0.75 : 1));
+
+      nodeGroups.select("circle.inner-dot")
+        .attr("fill", (d) => (d.icao === sandboxPendingOrigin ? "#ffffff" : "#EE1C25"));
+
+      nodeGroups.select("text.map-label-city")
+        .attr("text-anchor", "middle")
+        .style("stroke", labelHalo)
+        .attr("fill", (d) => {
+          if (d.icao === sandboxPendingOrigin) return "#d97706";
+          if (d.icao === selectedAirportIcao) return isDarkMode ? "#f8fafc" : "#16181d";
+          return d.active === false ? "#94a3b8" : "#EE1C25";
+        })
+        .text((d) => d.city);
+
+      nodeGroups.select("text.map-label-icao")
+        .attr("text-anchor", "middle")
+        .style("stroke", labelHalo)
+        .attr("fill", isDarkMode ? "#e2e8f0" : "#64748b")
+        .text((d) => d.icao);
+
+      applyConstantRouteWeights(currentZoomScale);
+      applyZoomScaledLabelStyles(currentZoomScale);
+    }
+
+    async function loadWorldAtlas() {
+      try {
+        const res = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
+        const topology = await res.json();
+        const rawGeo = topojson.feature(topology, topology.objects.countries);
+        worldLandGeoJson = sanitizeGeoJsonFeatures(rawGeo);
+        renderMap();
+      } catch (err) {
+        console.error("Failed to load world map:", err);
+      }
+    }
+
+    window.addEventListener("resize", () => renderMap());
+
+    // =========================================================================
+    // INSPECTOR PANEL
+    // =========================================================================
+    const inspectorCard = document.getElementById("inspector-card");
+
+    function clearInspector() {
+      selectedAirportIcao = null;
+      selectedRouteKey = null;
+      inspectorCard.classList.remove("open");
+      renderMap();
+    }
+
+    document.getElementById("close-inspector-btn").addEventListener("click", clearInspector);
+
+    function selectAirport(airport) {
+      if (sandboxMode) return;
+      selectedAirportIcao = airport.icao;
+      selectedRouteKey = null;
+
+      const airportMap = new Map(networkData.airports.map((a) => [a.icao, a]));
+      const connected = networkData.routes.filter((r) => r.origin === airport.icao || r.dest === airport.icao);
+
+      document.getElementById("inspector-kicker").textContent = airport.isHub ? "Hub Station" : "Network Station";
+      document.getElementById("inspector-title").textContent = `${airport.city} (${airport.icao})`;
+      document.getElementById("inspector-stats").innerHTML = `
+        <div class="metric-cell">
+          <div class="metric-key">Region</div>
+          <div class="metric-val">${airport.continent}</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-key">Sectors</div>
+          <div class="metric-val">${connected.length}</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-key">Latitude</div>
+          <div class="metric-val">${airport.lat.toFixed(4)}&deg;</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-key">Longitude</div>
+          <div class="metric-val">${airport.lon.toFixed(4)}&deg;</div>
+        </div>
+      `;
+
+      document.getElementById("inspector-extra").textContent =
+        connected.length > 0 ? "Select a sector below to inspect flight details:" : "No sectors connected to this station.";
+
+      document.getElementById("inspector-list").innerHTML = connected.map((r) => {
+        const peerCode = r.origin === airport.icao ? r.dest : r.origin;
+        const peer = airportMap.get(peerCode);
+        const acText = (r.aircraftTypes || []).join(", ");
+        return `
+          <div class="sector-row" data-inspect-route="${r.origin}->${r.dest}">
+            <span style="display:flex;align-items:center;gap:6px;">
+              <span class="swatch-dot" style="background:${r.color || DEFAULT_ROUTE_COLOR};"></span>
+              <strong>${peer ? peer.city.toUpperCase() : peerCode}</strong> (${peerCode})
+            </span>
+            <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--ink-muted);text-align:right;">${acText}</span>
+          </div>
+        `;
+      }).join("");
+
+      inspectorCard.classList.add("open");
+      renderMap();
+    }
+
+    function selectRoute(route) {
+      if (sandboxMode) return;
+      selectedRouteKey = `${route.origin}->${route.dest}`;
+      selectedAirportIcao = null;
+
+      const airportMap = new Map(networkData.airports.map((a) => [a.icao, a]));
+      const src = airportMap.get(route.origin);
+      const dst = airportMap.get(route.dest);
+      const distNm = src && dst ? calculateGreatCircleNm(src, dst) : 0;
+      const acText = (route.aircraftTypes || []).join(", ");
+
+      document.getElementById("inspector-kicker").textContent = "Flight Sector";
+      document.getElementById("inspector-title").textContent =
+        `${src ? src.city : route.origin} → ${dst ? dst.city : route.dest}`;
+
+      document.getElementById("inspector-stats").innerHTML = `
+        <div class="metric-cell">
+          <div class="metric-key">City Pair</div>
+          <div class="metric-val">${route.origin}–${route.dest}</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-key">Type</div>
+          <div class="metric-val">${route.type || route.frequency || "Scheduled"}</div>
+        </div>
+        <div class="metric-cell" style="grid-column: span 2;">
+          <div class="metric-key">Aircraft</div>
+          <div class="metric-val">${acText}</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-key">Distance</div>
+          <div class="metric-val">${distNm.toLocaleString()} NM</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-key">Sector Color</div>
+          <div class="metric-val" style="display:flex;align-items:center;">
+            <span style="display:inline-block;width:28px;height:14px;border-radius:2px;border:1px solid var(--border-strong);background:${route.color || DEFAULT_ROUTE_COLOR};"></span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById("inspector-extra").textContent =
+        src && dst ? `${src.continent} → ${dst.continent}` : "";
+
+      document.getElementById("inspector-list").innerHTML = [src, dst].filter(Boolean).map((ap) => `
+        <div class="sector-row" data-inspect-airport="${ap.icao}">
+          <span>Station: <strong>${ap.city.toUpperCase()}</strong> (${ap.icao})</span>
+          <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--ink-muted);">${ap.continent}</span>
+        </div>
+      `).join("");
+
+      inspectorCard.classList.add("open");
+      renderMap();
+    }
+
+    document.getElementById("inspector-list").addEventListener("click", (e) => {
+      const routeItem = e.target.closest("[data-inspect-route]");
+      if (routeItem) {
+        const key = routeItem.getAttribute("data-inspect-route");
+        const found = networkData.routes.find((r) => `${r.origin}->${r.dest}` === key);
+        if (found) selectRoute(found);
+        return;
+      }
+      const apItem = e.target.closest("[data-inspect-airport]");
+      if (apItem) {
+        const icao = apItem.getAttribute("data-inspect-airport");
+        const found = networkData.airports.find((a) => a.icao === icao);
+        if (found) selectAirport(found);
+      }
+    });
+
+    // =========================================================================
+    // AIRCRAFT MULTI-FILTER POPOVER
+    // =========================================================================
+    const aircraftToggleBtn = document.getElementById("aircraft-toggle-btn");
+    const aircraftPopover = document.getElementById("aircraft-popover");
+    const aircraftCheckboxList = document.getElementById("aircraft-checkbox-list");
+
+    aircraftToggleBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = aircraftPopover.classList.toggle("open");
+      aircraftToggleBtn.setAttribute("aria-expanded", String(isOpen));
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".multi-filter-wrap")) {
+        aircraftPopover.classList.remove("open");
+        aircraftToggleBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    function updateAircraftButtonLabel() {
+      if (selectedAircraftSet.size === 0) {
+        aircraftToggleBtn.textContent = "FLEET: ALL";
+      } else if (selectedAircraftSet.size === 1) {
+        aircraftToggleBtn.textContent = `FLEET: ${[...selectedAircraftSet][0]}`;
+      } else {
+        aircraftToggleBtn.textContent = `FLEET (${selectedAircraftSet.size})`;
+      }
+    }
+
+    function renderAircraftToggleList(allTypes) {
+      const availableSet = new Set(allTypes);
+      for (const ac of [...selectedAircraftSet]) {
+        if (!availableSet.has(ac)) selectedAircraftSet.delete(ac);
+      }
+      updateAircraftButtonLabel();
+
+      if (!allTypes.length) {
+        aircraftCheckboxList.innerHTML = `<div class="hint-text" style="padding:6px 8px;">No aircraft defined</div>`;
+        return;
+      }
+
+      aircraftCheckboxList.innerHTML = allTypes.map((ac) => {
+        const checked = selectedAircraftSet.has(ac) ? "checked" : "";
+        return `
+          <label class="multi-filter-item">
+            <input type="checkbox" value="${ac}" ${checked} />
+            <span>${ac}</span>
+          </label>
+        `;
+      }).join("");
+    }
+
+    aircraftCheckboxList.addEventListener("change", (e) => {
+      const cb = e.target.closest("input[type='checkbox']");
+      if (!cb) return;
+      if (cb.checked) {
+        selectedAircraftSet.add(cb.value);
+      } else {
+        selectedAircraftSet.delete(cb.value);
+      }
+      updateAircraftButtonLabel();
+      renderMap();
+    });
+
+    document.getElementById("ac-select-all").addEventListener("click", () => {
+      const allTypes = [...new Set(networkData.routes.flatMap((r) => r.aircraftTypes || []))];
+      selectedAircraftSet = new Set(allTypes);
+      renderAircraftToggleList(allTypes);
+      renderMap();
+    });
+
+    document.getElementById("ac-clear-all").addEventListener("click", () => {
+      selectedAircraftSet.clear();
+      const allTypes = [...new Set(networkData.routes.flatMap((r) => r.aircraftTypes || []))];
+      renderAircraftToggleList(allTypes);
+      renderMap();
+    });
+
+    ["filter-hub", "filter-continent", "filter-type"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", () => {
+        renderMap();
+      });
+    });
+
+    // =========================================================================
+    // AUTH & NETWORK EDITOR
+    // =========================================================================
+    const authModal = document.getElementById("auth-modal");
+    const editorModal = document.getElementById("editor-modal");
+    const authError = document.getElementById("auth-error");
+    const editorError = document.getElementById("editor-error");
+
+    function openModal(el) {
+      el.classList.add("open");
+      el.setAttribute("aria-hidden", "false");
+    }
+
+    function closeModal(el) {
+      el.classList.remove("open");
+      el.setAttribute("aria-hidden", "true");
+    }
+
+    function updateAuthUI() {
+      const badge = document.getElementById("editor-user-badge");
+      const signoutBtn = document.getElementById("signout-btn");
+      if (currentUser) {
+        badge.textContent = currentUser.email;
+        signoutBtn.style.display = "inline-flex";
+        sandboxModeBtn.style.display = "inline-flex";
+      } else {
+        badge.textContent = "";
+        signoutBtn.style.display = "none";
+        sandboxModeBtn.style.display = "none";
+        if (sandboxMode) {
+          setSandboxMode(false);
+        }
+        if (showAllAirports) {
+          showAllAirports = false;
+          renderMap();
+        }
+      }
+      syncAllAirportsBtn();
+    }
+
+    function handleOpenEditor() {
+      authError.textContent = "";
+      editorError.textContent = "";
+      updateAuthUI();
+      if (firebaseReady && !currentUser) {
+        openModal(authModal);
+      } else {
+        openModal(editorModal);
+      }
+    }
+
+    document.getElementById("open-editor-btn").addEventListener("click", handleOpenEditor);
+    document.getElementById("close-auth-btn").addEventListener("click", () => closeModal(authModal));
+    document.getElementById("close-editor-btn").addEventListener("click", () => closeModal(editorModal));
+
+    document.getElementById("auth-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      authError.textContent = "";
+      const email = document.getElementById("auth-email").value.trim();
+      const password = document.getElementById("auth-password").value;
+      const btn = document.getElementById("auth-submit-btn");
+      btn.disabled = true;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        document.getElementById("auth-password").value = "";
+        closeModal(authModal);
+        openModal(editorModal);
+      } catch (err) {
+        authError.textContent = "Authentication failed. Check email and password.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("signout-btn").addEventListener("click", async () => {
+      if (auth) await signOut(auth);
+      closeModal(editorModal);
+    });
+
+    function renderControlsAndTables() {
+      const activeAirportsAll = networkData.airports.filter((a) => a.active !== false);
+      const hubs = activeAirportsAll.filter((a) => a.isHub);
+      const allAircraftTypes = [...new Set(networkData.routes.flatMap((r) => r.aircraftTypes || []).filter(Boolean))].sort();
+
+      if (sandboxMode) {
+        document.getElementById("network-summary").textContent =
+          `SANDBOX · ${activeAirportsAll.length} AIRPORTS · ${sandboxRoutes.length} LOCAL ROUTES`;
+      } else {
+        document.getElementById("network-summary").textContent =
+          `${hubs.length} HUB${hubs.length === 1 ? "" : "S"} · ${activeAirportsAll.length}/${networkData.airports.length} ACTIVE · ${networkData.routes.length} SECTORS`;
+      }
+
+      const hubSel = document.getElementById("filter-hub");
+      const prevHub = hubSel.value;
+      hubSel.innerHTML = `<option value="ALL">HUB: ALL (${hubs.length})</option>` +
+        hubs.map((h) => `<option value="${h.icao}">${h.city.toUpperCase()} (${h.icao})</option>`).join("");
+      if ([...hubSel.options].some((o) => o.value === prevHub)) hubSel.value = prevHub;
+
+      const allTypes = [...new Set(networkData.routes.map((r) => String(r.type || r.frequency || "Scheduled").trim()).filter(Boolean))].sort();
+      const typeSel = document.getElementById("filter-type");
+      const prevType = typeSel.value;
+      typeSel.innerHTML = `<option value="ALL">TYPE: ALL</option>` +
+        allTypes.map((t) => `<option value="${t}">TYPE: ${t.toUpperCase()}</option>`).join("");
+      if ([...typeSel.options].some((o) => o.value === prevType)) typeSel.value = prevType;
+
+      renderAircraftToggleList(allAircraftTypes);
+
+      const dropdownAirports = [...networkData.airports].sort((a, b) => a.city.localeCompare(b.city));
+      const apOptions = dropdownAirports.length
+        ? dropdownAirports.map((a) => `<option value="${a.icao}">${a.city.toUpperCase()} (${a.icao})</option>`).join("")
+        : `<option value="">Add airports first</option>`;
+
+      const sortedAirports = [...networkData.airports];
+      if (airportSortField) {
+        const dir = airportSortDir === "desc" ? -1 : 1;
+        sortedAirports.sort((a, b) => {
+          let av = "";
+          let bv = "";
+          if (airportSortField === "city") {
+            av = (a.city || "").toLowerCase();
+            bv = (b.city || "").toLowerCase();
+          } else if (airportSortField === "code") {
+            av = (a.icao || "").toLowerCase();
+            bv = (b.icao || "").toLowerCase();
+          } else if (airportSortField === "region") {
+            av = (a.continent || "").toLowerCase();
+            bv = (b.continent || "").toLowerCase();
+          } else if (airportSortField === "role") {
+            av = a.isHub ? "hub" : "station";
+            bv = b.isHub ? "hub" : "station";
+          } else if (airportSortField === "status") {
+            av = a.active === false ? "inactive" : "active";
+            bv = b.active === false ? "inactive" : "active";
+          }
+          return av.localeCompare(bv) * dir;
+        });
+      }
+
+      document.querySelectorAll("[data-sort-airport]").forEach((btn) => {
+        const field = btn.getAttribute("data-sort-airport");
+        const ind = btn.querySelector(".sort-ind");
+        if (field === airportSortField) {
+          btn.classList.add("active");
+          if (ind) ind.textContent = airportSortDir === "desc" ? "▼" : "▲";
+        } else {
+          btn.classList.remove("active");
+          if (ind) ind.textContent = "";
+        }
+      });
+
+      const originSel = document.getElementById("route-origin");
+      const destSel = document.getElementById("route-dest");
+      const prevOrigin = originSel.value;
+      const prevDest = destSel.value;
+      originSel.innerHTML = apOptions;
+      destSel.innerHTML = apOptions;
+      if (prevOrigin && [...originSel.options].some((o) => o.value === prevOrigin)) originSel.value = prevOrigin;
+      if (prevDest && [...destSel.options].some((o) => o.value === prevDest)) {
+        destSel.value = prevDest;
+      } else if (sortedAirports.length > 1) {
+        destSel.selectedIndex = 1;
+      }
+
+      const airportsBody = document.getElementById("airports-table-body");
+      airportsBody.innerHTML = sortedAirports.length
+        ? sortedAirports.map((a) => `
+          <tr class="editor-row-clickable" data-row-airport="${a.icao}">
+            <td style="text-transform:capitalize;font-weight:600;">${a.city}</td>
+            <td style="font-family:var(--font-mono);">${a.icao}</td>
+            <td>${a.continent}</td>
+            <td>${a.isHub ? '<span class="badge-hub">Hub</span>' : 'Station'}</td>
+            <td>
+              <button type="button" class="btn btn-sm" data-toggle-airport="${a.icao}" style="color:${a.active === false ? 'var(--ink-muted)' : 'var(--ok)'};">
+                ${a.active === false ? 'Inactive' : 'Active'}
+              </button>
+            </td>
+            <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-muted);" title="${(a.remarks || "").replace(/"/g, "&quot;")}">${a.remarks || "—"}</td>
+            <td style="text-align:right;white-space:nowrap;">
+              <button type="button" class="btn btn-sm btn-danger" data-del-airport="${a.icao}">Delete</button>
+            </td>
+          </tr>
+        `).join("")
+        : `<tr><td colspan="7" class="hint-text" style="text-align:center;padding:12px;">No airports in database.</td></tr>`;
+
+      const airportMap = new Map(networkData.airports.map((a) => [a.icao, a]));
+      const routesBody = document.getElementById("routes-table-body");
+
+      const indexedRoutes = networkData.routes.map((r, origIdx) => ({ r, origIdx }));
+      if (routeSortField) {
+        const dir = routeSortDir === "desc" ? -1 : 1;
+        indexedRoutes.sort((a, b) => {
+          let av = "";
+          let bv = "";
+          if (routeSortField === "color") {
+            av = (a.r.color || DEFAULT_ROUTE_COLOR).toLowerCase();
+            bv = (b.r.color || DEFAULT_ROUTE_COLOR).toLowerCase();
+          } else if (routeSortField === "origin") {
+            const ao = airportMap.get(a.r.origin);
+            const bo = airportMap.get(b.r.origin);
+            av = `${ao ? ao.city : ""} ${a.r.origin}`.toLowerCase();
+            bv = `${bo ? bo.city : ""} ${b.r.origin}`.toLowerCase();
+          } else if (routeSortField === "dest") {
+            const ad = airportMap.get(a.r.dest);
+            const bd = airportMap.get(b.r.dest);
+            av = `${ad ? ad.city : ""} ${a.r.dest}`.toLowerCase();
+            bv = `${bd ? bd.city : ""} ${b.r.dest}`.toLowerCase();
+          } else if (routeSortField === "aircraft") {
+            av = (a.r.aircraftTypes || []).join(", ").toLowerCase();
+            bv = (b.r.aircraftTypes || []).join(", ").toLowerCase();
+          }
+          return av.localeCompare(bv) * dir;
+        });
+      }
+
+      document.querySelectorAll(".sort-th-btn").forEach((btn) => {
+        const field = btn.getAttribute("data-sort-route");
+        const ind = btn.querySelector(".sort-ind");
+        if (field === routeSortField) {
+          btn.classList.add("active");
+          if (ind) ind.textContent = routeSortDir === "desc" ? "▼" : "▲";
+        } else {
+          btn.classList.remove("active");
+          if (ind) ind.textContent = "";
+        }
+      });
+
+      routesBody.innerHTML = indexedRoutes.length
+        ? indexedRoutes.map(({ r, origIdx }) => {
+          const o = airportMap.get(r.origin);
+          const d = airportMap.get(r.dest);
+          const rColor = r.color || DEFAULT_ROUTE_COLOR;
+          const chips = (r.aircraftTypes || []).map((ac) => `<span class="ac-chip">${ac}</span>`).join("");
+          const rType = r.type || r.frequency || "Scheduled";
+          return `
+            <tr class="editor-row-clickable" data-row-route="${origIdx}">
+              <td><span class="swatch-dot" style="background:${rColor};" title="${rColor}"></span></td>
+              <td><strong>${o ? o.city.toUpperCase() : r.origin}</strong> (${r.origin})</td>
+              <td><strong>${d ? d.city.toUpperCase() : r.dest}</strong> (${r.dest})</td>
+              <td>${chips}</td>
+              <td style="font-family:var(--font-mono);">${rType}</td>
+              <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-muted);" title="${(r.remarks || "").replace(/"/g, "&quot;")}">${r.remarks || "—"}</td>
+              <td style="text-align:right;white-space:nowrap;">
+                <button type="button" class="btn btn-sm btn-danger" data-del-route="${origIdx}">Delete</button>
+              </td>
+            </tr>
+          `;
+        }).join("")
+        : `<tr><td colspan="7" class="hint-text" style="text-align:center;padding:12px;">No flight sectors in database.</td></tr>`;
+    }
+
+    function renderAll() {
+      syncAllAirportsBtn();
+      renderControlsAndTables();
+      renderMap();
+    }
+
+    document.getElementById("add-airport-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      editorError.textContent = "";
+      const city = document.getElementById("airport-city").value.trim().toLowerCase();
+      const icao = document.getElementById("airport-icao").value.trim().toUpperCase();
+      const lat = parseFloat(document.getElementById("airport-lat").value);
+      const lon = parseFloat(document.getElementById("airport-lon").value);
+      const continent = document.getElementById("airport-continent").value;
+      const isHub = document.getElementById("airport-type").value === "hub";
+      const active = document.getElementById("airport-active").value === "true";
+      const remarks = document.getElementById("airport-remarks").value.trim();
+
+      if (!/^[A-Z0-9]{3,4}$/.test(icao)) {
+        editorError.textContent = "ICAO/IATA code must be 3 to 4 alphanumeric characters.";
+        return;
+      }
+      if (Number.isNaN(lat) || Number.isNaN(lon)) {
+        editorError.textContent = "Please enter valid latitude and longitude coordinates.";
+        return;
+      }
+
+      const entry = { icao, city, lat, lon, continent, isHub, active, remarks };
+      const existingIdx = networkData.airports.findIndex((a) => a.icao === icao);
+      if (existingIdx >= 0) {
+        networkData.airports[existingIdx] = entry;
+      } else {
+        networkData.airports.push(entry);
+      }
+
+      e.target.reset();
+      renderAll();
+    });
+
+    document.getElementById("airports-table-body").addEventListener("click", (e) => {
+      const toggleIcao = e.target.getAttribute("data-toggle-airport");
+      if (toggleIcao) {
+        const ap = networkData.airports.find((a) => a.icao === toggleIcao);
+        if (ap) {
+          ap.active = ap.active === false ? true : false;
+          if (ap.active === false && selectedAirportIcao === toggleIcao) clearInspector();
+          renderAll();
+        }
+        return;
+      }
+
+      const delIcao = e.target.getAttribute("data-del-airport");
+      if (delIcao) {
+        networkData.airports = networkData.airports.filter((a) => a.icao !== delIcao);
+        networkData.routes = networkData.routes.filter((r) => r.origin !== delIcao && r.dest !== delIcao);
+        sandboxRoutes = sandboxRoutes.filter((r) => r.origin !== delIcao && r.dest !== delIcao);
+        if (selectedAirportIcao === delIcao) clearInspector();
+        renderAll();
+        return;
+      }
+
+      const rowEl = e.target.closest("[data-row-airport]");
+      if (rowEl && !e.target.closest("button")) {
+        const rowIcao = rowEl.getAttribute("data-row-airport");
+        const ap = networkData.airports.find((a) => a.icao === rowIcao);
+        if (ap) {
+          document.getElementById("airport-city").value = ap.city;
+          document.getElementById("airport-icao").value = ap.icao;
+          document.getElementById("airport-lat").value = ap.lat;
+          document.getElementById("airport-lon").value = ap.lon;
+          document.getElementById("airport-continent").value = ap.continent;
+          document.getElementById("airport-type").value = ap.isHub ? "hub" : "dest";
+          document.getElementById("airport-active").value = ap.active === false ? "false" : "true";
+          document.getElementById("airport-remarks").value = ap.remarks || "";
+        }
+      }
+    });
+
+    document.getElementById("add-route-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      editorError.textContent = "";
+      const origin = document.getElementById("route-origin").value;
+      const dest = document.getElementById("route-dest").value;
+      const aircraftTypes = parseAircraftList(document.getElementById("route-aircraft").value);
+      const type = document.getElementById("route-type").value.trim() || "Scheduled";
+      const remarks = document.getElementById("route-remarks").value.trim();
+      const color = document.getElementById("route-color").value || DEFAULT_ROUTE_COLOR;
+
+      if (!origin || !dest) {
+        editorError.textContent = "Add at least two airports before creating a sector.";
+        return;
+      }
+      if (origin === dest) {
+        editorError.textContent = "Origin and destination must be different.";
+        return;
+      }
+      if (!aircraftTypes.length) {
+        editorError.textContent = "Specify at least one aircraft type.";
+        return;
+      }
+
+      const existingIdx = networkData.routes.findIndex((r) => r.origin === origin && r.dest === dest);
+      const entry = { origin, dest, aircraftTypes, type, remarks, color };
+      if (existingIdx >= 0) {
+        networkData.routes[existingIdx] = entry;
+      } else {
+        networkData.routes.push(entry);
+      }
+
+      renderAll();
+    });
+
+    document.querySelectorAll("[data-sort-airport]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const field = btn.getAttribute("data-sort-airport");
+        if (!field) return;
+        if (airportSortField === field) {
+          airportSortDir = airportSortDir === "asc" ? "desc" : "asc";
+        } else {
+          airportSortField = field;
+          airportSortDir = "asc";
+        }
+        renderControlsAndTables();
+      });
+    });
+
+    document.querySelectorAll("[data-sort-route]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const field = btn.getAttribute("data-sort-route");
+        if (!field) return;
+        if (routeSortField === field) {
+          routeSortDir = routeSortDir === "asc" ? "desc" : "asc";
+        } else {
+          routeSortField = field;
+          routeSortDir = "asc";
+        }
+        renderControlsAndTables();
+      });
+    });
+
+    document.getElementById("routes-table-body").addEventListener("click", (e) => {
+      const delIdx = e.target.getAttribute("data-del-route");
+      if (delIdx !== null) {
+        networkData.routes.splice(Number(delIdx), 1);
+        clearInspector();
+        renderAll();
+        return;
+      }
+
+      const rowEl = e.target.closest("[data-row-route]");
+      if (rowEl && !e.target.closest("button")) {
+        const r = networkData.routes[Number(rowEl.getAttribute("data-row-route"))];
+        if (r) {
+          document.getElementById("route-origin").value = r.origin;
+          document.getElementById("route-dest").value = r.dest;
+          document.getElementById("route-aircraft").value = (r.aircraftTypes || []).join(", ");
+          document.getElementById("route-type").value = r.type || r.frequency || "Scheduled";
+          document.getElementById("route-remarks").value = r.remarks || "";
+          document.getElementById("route-color").value = r.color || DEFAULT_ROUTE_COLOR;
+        }
+      }
+    });
+
+    document.getElementById("save-network-btn").addEventListener("click", async () => {
+      editorError.textContent = "";
+      const btn = document.getElementById("save-network-btn");
+      btn.disabled = true;
+      try {
+        await publishToFirebase();
+        closeModal(editorModal);
+      } catch (err) {
+        editorError.textContent = err.message || "Failed to publish changes to Firebase.";
+        setSyncStatus("error", "PUBLISH ERR");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    const importJsonInput = document.getElementById("import-json-input");
+    document.getElementById("import-json-btn").addEventListener("click", () => {
+      editorError.textContent = "";
+      importJsonInput.value = "";
+      importJsonInput.click();
+    });
+
+    importJsonInput.addEventListener("change", async (e) => {
+      editorError.textContent = "";
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        let candidate = parsed;
+        if (parsed && typeof parsed === "object" && parsed.payload && typeof parsed.payload === "object") {
+          candidate = parsed.payload;
+        } else if (Array.isArray(parsed)) {
+          candidate = { airports: parsed, routes: networkData.routes };
+        }
+
+        const sanitized = sanitizeNetworkPayload(candidate);
+        if (!Array.isArray(candidate?.airports) && !Array.isArray(candidate?.routes)) {
+          throw new Error("JSON must contain 'airports' and/or 'routes' arrays.");
+        }
+
+        networkData = {
+          airports: sanitized.airports,
+          routes: Array.isArray(candidate?.routes) ? sanitized.routes : networkData.routes
+        };
+        clearInspector();
+        renderAll();
+        editorError.style.color = "var(--ok)";
+        editorError.textContent = `Imported ${networkData.airports.length} airports and ${networkData.routes.length} sectors. Publish to Firebase to save.`;
+        setTimeout(() => {
+          editorError.style.color = "";
+        }, 5000);
+      } catch (err) {
+        editorError.style.color = "";
+        editorError.textContent = err.message || "Failed to import JSON backup file.";
+      }
+    });
+
+    document.getElementById("export-json-btn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(networkData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "deat-route-network-backup.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    const darkModeBtn = document.getElementById("dark-mode-btn");
+    function setDarkMode(enabled) {
+      document.body.classList.toggle("dark-mode", enabled);
+      darkModeBtn.textContent = enabled ? "Light Mode" : "Dark Mode";
+      try { localStorage.setItem("deat_dark_mode", enabled ? "1" : "0"); } catch (_) {}
+      renderMap();
+    }
+    darkModeBtn.addEventListener("click", () => {
+      setDarkMode(!document.body.classList.contains("dark-mode"));
+    });
+    try {
+      if (localStorage.getItem("deat_dark_mode") === "1") {
+        document.body.classList.add("dark-mode");
+        darkModeBtn.textContent = "Light Mode";
+      }
+    } catch (_) {}
+
+    // Boot
+    renderAll();
+    loadWorldAtlas();
+    initFirebaseBackend();
+  </script>
+</body>
+</html>

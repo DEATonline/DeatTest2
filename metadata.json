@@ -1,0 +1,6 @@
+{
+  "name": "DEAT — Global Route Network",
+  "description": "Interactive global airline route network map, flight sector inspector, local route sandbox, and Firebase-synced network operations editor.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

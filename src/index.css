@@ -1,0 +1,145 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-deat: #EE1C25;
+  --color-deat-hover: #CC121A;
+  --color-deat-highlight: #FF131B;
+}
+
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-alt: #f6f7f9;
+  --border: #dfe3e8;
+  --border-strong: #c2c9d2;
+  --ink: #12161f;
+  --ink-secondary: #47505e;
+  --ink-muted: #6e7785;
+  --deat-red: #EE1C25;
+  --deat-red-hover: #cc121a;
+  --route-highlight: #FF131B;
+  --sandbox-accent: #d97706;
+  --sandbox-bg: #fffbeb;
+  --land: #dce1e8;
+  --land-stroke: #ffffff;
+  --marker-fill: #ffffff;
+  --label-halo: #ffffff;
+  --ok: #15803d;
+  --warn: #b45309;
+  --err: #dc2626;
+}
+
+.dark {
+  --bg: #0b0f17;
+  --surface: #111722;
+  --surface-alt: #171f2e;
+  --border: #252e40;
+  --border-strong: #37435a;
+  --ink: #f1f5f9;
+  --ink-secondary: #cbd5e1;
+  --ink-muted: #94a3b8;
+  --sandbox-bg: #261b08;
+  --land: #1c2433;
+  --land-stroke: #0b0f17;
+  --marker-fill: #0b0f17;
+  --label-halo: #0b0f17;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --err: #f87171;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    background-color: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .dark body {
+    letter-spacing: 0.005em;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--deat-red);
+    outline-offset: 2px;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Map vector typography & hover responsiveness */
+.map-label-city {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-style: italic;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke-linejoin: round;
+  user-select: none;
+}
+
+.map-label-icao {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke-linejoin: round;
+  user-select: none;
+}
+
+.map-route-count {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke-linejoin: round;
+  user-select: none;
+}
+
+.route-visible-path {
+  fill: none;
+  stroke-linecap: round;
+  pointer-events: none;
+  transition: opacity 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.route-hit-area {
+  fill: none;
+  stroke: transparent;
+  cursor: pointer;
+}
+
+.airport-node {
+  cursor: pointer;
+}
+
+.airport-node:focus-visible .outer-ring {
+  filter: drop-shadow(0 0 4px var(--deat-red));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-visible-path {
+    transition: none;
+  }
+}
